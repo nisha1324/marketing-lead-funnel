@@ -110,7 +110,7 @@ pytest                                 # offline tests on a fixture database
 
 ## Roadmap
 - [x] Part 1: conversion by month and channel, time to close, May drop decomposition
-- [ ] Part 2: sales-team and lead-profile drivers (SDR/SR workload and win rates, landing pages, business segment and lead type of won deals)
+- [ ] Part 2: sales-team and lead-profile drivers (SDR/SR workload and time to close; reps are only recorded on won deals, so their win rates can't be measured; landing pages; business segment and lead type of won deals)
 - [ ] Part 3: after the deal: join won sellers to the [Olist e-commerce orders](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) by `seller_id` to see which channels bring sellers who actually sell
 - [ ] Final TL;DR, ranked recommendations with owners, limitations
 
