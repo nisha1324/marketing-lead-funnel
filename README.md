@@ -1,6 +1,6 @@
 # Marketing Lead Funnel Analysis (DuckDB + SQL)
 
-> **Status: in progress.** Part 1 (lead-to-seller conversion by month, channel and speed) is done. Next: sales-team and lead-profile drivers, then what signed sellers actually sold. See [Roadmap](#roadmap).
+> **Status: in progress.** Parts 1 and 2a are done: conversion by month, channel and speed, the May drop, and sales-team capacity. Next: landing pages and the lead profile, then what signed sellers actually sold. See [Roadmap](#roadmap).
 
 **Business question:** a marketplace recruits sellers through a marketing and sales funnel: a business signs up on a landing page, a sales development rep (SDR) qualifies it, and a sales rep (SR) tries to close it. **Which marketing channels bring leads that actually sign, how fast do deals close, and why did conversion fall in May 2018?** The answers decide where marketing spends its budget and how sales should prioritise its follow-up.
 
@@ -10,6 +10,8 @@
 - **A quarter of wins can't be credited to any channel.** Leads with origin `unknown` or missing are 14.4% of leads but 24.9% of wins, and they convert best (19.6%). Any cost-per-seller figure by channel built on this data leaves out a quarter of signed sellers.
 - **Deals close fast or not at all.** 38.1% of wins sign within a week and 57.3% within two weeks; only 8.7% come after day 90.
 - **May's drop was a conversion problem, not a lead-mix problem.** Of the 3.75-point fall, the channel mix explains −0.41 points and weaker conversion *within* channels −3.34 points (89%). Every large channel fell, e.g. paid search 13.4% → 9.0%.
+- **Fewer reps is a weak explanation.** 15 reps closed a deal from the May cohort, the fewest of any cohort (16–20 in January–April), but wins per rep (8.7) were in line with February and March (8.3–8.4).
+- **Wins lean on a few reps.** The top 5 of 21 reps won 51% of 2018 wins, and the top rep won 16%.
 
 ## Data
 [Marketing Funnel by Olist](https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist): real, anonymised data on 8,000 marketing-qualified leads (MQLs) who asked to sell on the Olist marketplace between June 2017 and June 2018, randomly sampled by Olist from all its MQLs, plus the 842 of them that signed. Kaggle needs a login, so `scripts/download_data.py` fetches the two CSVs (~0.9 MB) from public GitHub mirrors ([`mara/mara-olist-ecommerce-data`](https://github.com/mara/mara-olist-ecommerce-data), with [`patterns-app/public_data`](https://github.com/patterns-app/public_data) as a fallback). Both mirrors serve byte-identical files whose total size matches the Kaggle listing exactly. The script pins their SHA-256 hashes and stops if a file changes. The raw CSVs aren't committed.
@@ -90,11 +92,29 @@ A shift-share split of the change from Jan–Apr (12.1%) to May (8.4%):
 
 Because nearly every channel fell together, the cause is more likely on the sales side (capacity, follow-up, or a change in process) than in marketing targeting. Part 2 checks SDR and SR workload to test this. Query: [`04_may_drop_mix_vs_rate.sql`](sql/04_may_drop_mix_vs_rate.sql).
 
+### 5. Sales capacity: May had slightly fewer reps, and wins lean on a few people
+![Sales reps with a win, and rep concentration](results/charts/05_sales_capacity.png)
+
+| Lead cohort | Leads | Wins | Reps with a win (SDR / SR) | Wins per SR | Median days to close |
+|---|---:|---:|---:|---:|---:|
+| 2018-01 | 1,141 | 152 | 12 / 16 | 9.5 | 17.5 |
+| 2018-02 | 1,028 | 149 | 17 / 18 | 8.3 | 16.0 |
+| 2018-03 | 1,174 | 167 | 17 / 20 | 8.4 | 12.0 |
+| 2018-04 | 1,352 | 183 | 13 / 16 | 11.4 | 9.0 |
+| 2018-05 | 1,303 | 130 | 15 / 15 | 8.7 | 10.0 |
+
+- **May had the fewest reps, but only by a little.** 15 reps closed a May-cohort deal, against 16–20 in January–April. Wins per rep (8.7) matched February and March (8.3 and 8.4), and April (11.4) was the outlier. A headcount dip of one to five people doesn't explain a fall of 3.75 points on its own.
+- **Deals that did sign closed no slower.** The median days to close for May's wins is 10, against 16–18 for January and February.
+- **Wins are concentrated.** 21 reps won at least one deal in the window. The top rep won 128 of 781 (16.4%), the top 5 won 50.6%, and the top 10 won 81.0%. Losing one of the top reps would be a material capacity hit.
+
+**What this can't show.** Reps are recorded only on won deals, so a rep with no win from a cohort is invisible, and the counts are a lower bound. Leads per rep aren't in the data, so workload can't be measured directly; "wins per rep" is a proxy, not a win rate. Queries: [`05_sales_capacity.sql`](sql/05_sales_capacity.sql), [`06_rep_concentration.sql`](sql/06_rep_concentration.sql).
+
 ## So what for the business (so far)
 1. **Rebalance social and email towards search.** They supply nearly a quarter of leads but a tenth of sellers. Either cut spend, or add a qualification step (form questions, a self-serve check) so SDRs don't spend time on leads that rarely sign. *Owner: marketing lead.*
 2. **Fix lead-source tracking before judging channel ROI.** A quarter of signed sellers have no channel, so every channel's cost per seller is wrong today. *Owner: marketing ops.*
 3. **Front-load sales follow-up.** Most wins happen in the first 14 days; a lead untouched in that window is losing its best odds. *Owner: SDR team lead.*
-4. **Treat May as a sales-side alert.** Lead quality per channel didn't explain the fall, so look at sales capacity and process first (Part 2). *Owner: sales manager.*
+4. **Treat May as a sales-side alert, but look at process before headcount.** Lead quality per channel didn't explain the fall, and the rep count dipped only slightly (15, against 16–20), so check follow-up speed and lead handling first. Lead contact dates would settle it. *Owner: sales manager.*
+5. **Reduce reliance on the top reps.** The top 5 of 21 reps won half of 2018's wins. Pair them with other reps on large leads, and track win volume by rep so that a departure is visible early. *Owner: sales manager.*
 
 These are first-pass recommendations. The final set will be ranked once Parts 2–3 are done.
 
@@ -110,12 +130,14 @@ pytest                                 # offline tests on a fixture database
 
 ## Roadmap
 - [x] Part 1: conversion by month and channel, time to close, May drop decomposition
-- [ ] Part 2: sales-team and lead-profile drivers (SDR/SR workload and time to close; reps are only recorded on won deals, so their win rates can't be measured; landing pages; business segment and lead type of won deals)
+- [x] Part 2a: sales-team capacity (reps with a win per cohort, wins per rep, rep concentration)
+- [ ] Part 2b: lead-profile drivers (landing-page conversion with small-n intervals; business segment and lead type of won deals)
 - [ ] Part 3: after the deal: join won sellers to the [Olist e-commerce orders](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) by `seller_id` to see which channels bring sellers who actually sell
 - [ ] Final TL;DR, ranked recommendations with owners, limitations
 
 ## Limitations (so far)
 - **One channel per lead.** Olist notes a lead may have come from several sources; the data records one origin.
+- **Reps are visible only through their wins.** Win rates by rep can't be measured, and the rep counts are a lower bound (see Part 2).
 - **Won deals only.** There is no record of lost deals or SDR contact dates, so the funnel has two measurable steps (lead → signed), not every stage.
 - **A sample.** The 8,000 leads are Olist's random sample of its MQLs, so counts are a fraction of the real volume; rates are what matter.
 - **2017 excluded** from rates because the deal records start in December 2017 (see Data).
