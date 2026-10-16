@@ -123,6 +123,27 @@ def chart_may_bridge(df: pd.DataFrame) -> Path:
     return _save(fig, "04_may_drop_bridge.png")
 
 
+def chart_sales_capacity(cap: pd.DataFrame, conc: pd.DataFrame) -> Path:
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 3.9), gridspec_kw={"width_ratios": [1.1, 1]})
+    ax1.bar(cap["cohort"], cap["srs_with_a_win"], color=ACCENT, width=0.6)
+    for x, (n, w) in enumerate(zip(cap["srs_with_a_win"], cap["wins_per_sr"])):
+        ax1.text(x, n + 0.3, f"{n} reps\n{w:.1f} wins each", ha="center", color=INK, fontsize=8)
+    ax1.set_ylim(0, cap["srs_with_a_win"].max() * 1.35)
+    ax1.set_ylabel("sales reps (SR) with a win")
+    ax1.set_title("Reps who closed deals, by lead cohort", loc="left", color=INK, fontsize=10)
+    _style(ax1)
+    ax2.plot(conc["sr_rank"], conc["cum_pct_of_wins"], color=ACCENT, marker="o", markersize=4)
+    ax2.axhline(50, color=MUTED, linestyle="--", linewidth=1)
+    ax2.text(conc["sr_rank"].iloc[-1], 52, "50%", ha="right", color=INK, fontsize=8)
+    ax2.set_xticks(conc["sr_rank"])
+    ax2.set_ylim(0, 105)
+    ax2.set_xlabel("reps, ranked by wins")
+    ax2.set_ylabel("cumulative % of 2018 wins")
+    ax2.set_title("Top reps' share of wins (top 10 shown)", loc="left", color=INK, fontsize=10)
+    _style(ax2)
+    return _save(fig, "05_sales_capacity.png")
+
+
 def write_report(results: dict[str, pd.DataFrame]) -> Path:
     lines = [
         "# Results",
@@ -152,6 +173,7 @@ def main() -> None:
     print(chart_channels(results["02_channel_conversion"]))
     print(chart_time_to_close(results["03_time_to_close"]))
     print(chart_may_bridge(results["04_may_drop_mix_vs_rate"]))
+    print(chart_sales_capacity(results["05_sales_capacity"], results["06_rep_concentration"]))
     print(write_report(results))
 
 

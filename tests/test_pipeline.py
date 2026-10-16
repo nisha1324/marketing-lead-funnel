@@ -129,3 +129,20 @@ def test_weak_channel_gaining_share_has_negative_mix_effect(con):
     df = run(con, "04_may_drop_mix_vs_rate").set_index("origin")
     assert df.loc["social", "may_pct_of_mqls"] > df.loc["social", "base_pct_of_mqls"]
     assert df.loc["social", "mix_effect_pts"] < 0
+
+
+def test_sales_capacity_by_cohort(con):
+    df = run(con, "05_sales_capacity").set_index("cohort")
+    jan = df.loc["2018-01"]
+    # l2 and l3 won in January's cohort, both with sr1 and sdr1
+    assert (jan["leads"], jan["wins"], jan["wins_90d"]) == (2, 2, 1)
+    assert (jan["srs_with_a_win"], jan["sdrs_with_a_win"]) == (1, 1)
+    assert jan["wins_per_sr"] == 2.0
+    assert df["wins"].sum() == 4                     # l2, l3, l5, l6 in the window
+
+
+def test_rep_concentration_sums_to_wins(con):
+    df = run(con, "06_rep_concentration")
+    assert df["wins"].sum() == 4                     # all in-window wins belong to sr1
+    assert df.loc[0, "pct_of_wins"] == 100.0 and df.loc[0, "cum_pct_of_wins"] == 100.0
+    assert df["srs_with_a_win"].iloc[0] == 1
