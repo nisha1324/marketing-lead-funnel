@@ -195,3 +195,30 @@ def test_may_drop_by_page_matches_channel_split_total(con):
     body = by_page.drop(index="TOTAL")
     assert body["mix_effect_pts"].sum() == pytest.approx(page_total["mix_effect_pts"], abs=0.02)
 
+
+def test_may_drop_by_lead_type_adds_up(con):
+    con.execute("UPDATE closed_deals SET lead_type = 'industry' WHERE mql_id = 'l6'")
+    con.execute("INSERT INTO mqls VALUES ('l11', DATE '2018-03-01', 'lp1', 'email')")
+    df = run(con, "10_may_drop_by_lead_type").set_index("lead_type")
+    # Jan-Apr: 4 leads, 1 win in 90 days (l2); May: 3 leads, 2 wins (l5, l6).
+    # Each period is scaled by its own lead count.
+    om, ind, total = df.loc["online_medium"], df.loc["industry"], df.loc["TOTAL"]
+    assert (om["base_wins"], om["may_wins"]) == (1, 1)
+    assert (om["base_wins_per_1k_leads"], om["may_wins_per_1k_leads"]) == (250.0, pytest.approx(333.3, abs=0.1))
+    assert (ind["base_wins"], ind["may_wins"]) == (0, 1)
+    assert ind["pct_of_drop"] == pytest.approx(80.0, abs=0.1)     # 333.3 of 416.7
+    assert total["change_per_1k"] == pytest.approx(1000 * (2 / 3 - 1 / 4), abs=0.1)
+    assert df.drop(index="TOTAL")["wins"].sum() == total["wins"] == 3
+
+
+def test_won_segments_profile(con):
+    con.execute("UPDATE closed_deals SET business_segment = 'toys' WHERE mql_id = 'l3'")
+    con.execute("UPDATE closed_deals SET business_type = 'manufacturer' WHERE mql_id IN ('l2', 'l3')")
+    df = run(con, "11_won_segments").set_index("segment")
+    # in-window wins: l2, l5, l6 are pet (l1 is a 2017 lead); l3 is toys
+    assert list(df.index) == ["pet", "toys"]
+    pet = df.loc["pet"]
+    assert (pet["wins"], pet["pct_manufacturers"]) == (3, pytest.approx(33.3, abs=0.1))
+    assert pet["pct_closed_in_14d"] == 100.0         # 10, -2 and 0 days
+    assert df.loc["toys", "pct_closed_in_14d"] == 0.0  # 91 days
+    assert df["cum_pct_of_wins"].iloc[-1] == 100.0

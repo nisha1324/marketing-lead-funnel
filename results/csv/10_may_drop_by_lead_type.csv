@@ -1,0 +1,10 @@
+lead_type,wins,pct_of_wins,base_wins,may_wins,base_wins_per_1k_leads,may_wins_per_1k_leads,change_per_1k,pct_of_drop,median_days_to_close
+online_medium,274,40.4,242,32,51.5,24.6,-27.0,71.9,9.0
+industry,102,15.0,82,20,17.5,15.3,-2.1,5.6,13.0
+online_big,100,14.7,84,16,17.9,12.3,-5.6,14.9,9.0
+offline,85,12.5,69,16,14.7,12.3,-2.4,6.4,11.0
+online_small,57,8.4,49,8,10.4,6.1,-4.3,11.4,10.0
+online_beginner,42,6.2,30,12,6.4,9.2,2.8,-7.5,9.0
+online_top,13,1.9,9,4,1.9,3.1,1.2,-3.1,5.0
+(missing),5,0.7,4,1,0.9,0.8,-0.1,0.2,22.0
+TOTAL,678,100.0,569,109,121.2,83.7,-37.5,100.0,

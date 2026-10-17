@@ -1,0 +1,12 @@
+segment,wins,pct_of_wins,cum_pct_of_wins,pct_manufacturers,pct_closed_in_14d
+home_decor,96,12.3,12.3,55.2,58.3
+health_beauty,89,11.4,23.7,27.0,56.2
+car_accessories,70,9.0,32.7,14.3,57.1
+construction_tools_house_garden,62,7.9,40.6,25.8,58.1
+household_utilities,62,7.9,48.5,32.3,62.9
+audio_video_electronics,60,7.7,56.2,8.3,43.3
+computers,31,4.0,60.2,0.0,61.3
+pet,28,3.6,63.8,21.4,53.6
+food_supplement,27,3.5,67.2,33.3,40.7
+food_drink,26,3.3,70.6,53.8,42.3
+other (23 segments),230,29.4,100.0,28.7,53.5

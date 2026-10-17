@@ -177,3 +177,37 @@ Query: [`sql/09_may_drop_by_page.sql`](../sql/09_may_drop_by_page.sql)
 | 1ceb590c    |          31 |         40 |                0.7 |               3.1 |                9.7 |               5   |            -0.06 |             -0.14 |
 | 35c9b150    |          27 |         32 |                0.6 |               2.5 |               11.1 |               9.4 |            -0.02 |             -0.04 |
 | TOTAL       |        4695 |       1303 |              100   |             100   |               12.1 |               8.4 |            -0.4  |             -3.35 |
+
+## Q10. Which kind of seller went missing in May? Wins by lead type, 2018 cohorts
+
+Query: [`sql/10_may_drop_by_lead_type.sql`](../sql/10_may_drop_by_lead_type.sql)
+
+| lead_type       |   wins |   pct_of_wins |   base_wins |   may_wins |   base_wins_per_1k_leads |   may_wins_per_1k_leads |   change_per_1k |   pct_of_drop |   median_days_to_close |
+|:----------------|-------:|--------------:|------------:|-----------:|-------------------------:|------------------------:|----------------:|--------------:|-----------------------:|
+| online_medium   |    274 |          40.4 |         242 |         32 |                     51.5 |                    24.6 |           -27   |          71.9 |                      9 |
+| industry        |    102 |          15   |          82 |         20 |                     17.5 |                    15.3 |            -2.1 |           5.6 |                     13 |
+| online_big      |    100 |          14.7 |          84 |         16 |                     17.9 |                    12.3 |            -5.6 |          14.9 |                      9 |
+| offline         |     85 |          12.5 |          69 |         16 |                     14.7 |                    12.3 |            -2.4 |           6.4 |                     11 |
+| online_small    |     57 |           8.4 |          49 |          8 |                     10.4 |                     6.1 |            -4.3 |          11.4 |                     10 |
+| online_beginner |     42 |           6.2 |          30 |         12 |                      6.4 |                     9.2 |             2.8 |          -7.5 |                      9 |
+| online_top      |     13 |           1.9 |           9 |          4 |                      1.9 |                     3.1 |             1.2 |          -3.1 |                      5 |
+| (missing)       |      5 |           0.7 |           4 |          1 |                      0.9 |                     0.8 |            -0.1 |           0.2 |                     22 |
+| TOTAL           |    678 |         100   |         569 |        109 |                    121.2 |                    83.7 |           -37.5 |         100   |                    nan |
+
+## Q11. What kind of sellers does the funnel sign? Business segment of 2018 wins
+
+Query: [`sql/11_won_segments.sql`](../sql/11_won_segments.sql)
+
+| segment                         |   wins |   pct_of_wins |   cum_pct_of_wins |   pct_manufacturers |   pct_closed_in_14d |
+|:--------------------------------|-------:|--------------:|------------------:|--------------------:|--------------------:|
+| home_decor                      |     96 |          12.3 |              12.3 |                55.2 |                58.3 |
+| health_beauty                   |     89 |          11.4 |              23.7 |                27   |                56.2 |
+| car_accessories                 |     70 |           9   |              32.7 |                14.3 |                57.1 |
+| construction_tools_house_garden |     62 |           7.9 |              40.6 |                25.8 |                58.1 |
+| household_utilities             |     62 |           7.9 |              48.5 |                32.3 |                62.9 |
+| audio_video_electronics         |     60 |           7.7 |              56.2 |                 8.3 |                43.3 |
+| computers                       |     31 |           4   |              60.2 |                 0   |                61.3 |
+| pet                             |     28 |           3.6 |              63.8 |                21.4 |                53.6 |
+| food_supplement                 |     27 |           3.5 |              67.2 |                33.3 |                40.7 |
+| food_drink                      |     26 |           3.3 |              70.6 |                53.8 |                42.3 |
+| other (23 segments)             |    230 |          29.4 |             100   |                28.7 |                53.5 |

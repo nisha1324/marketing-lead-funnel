@@ -179,6 +179,28 @@ def chart_pages_within_channel(df: pd.DataFrame) -> Path:
     return _save(fig, "06_pages_within_channel.png")
 
 
+def chart_may_by_lead_type(df: pd.DataFrame) -> Path:
+    total = df[df["lead_type"] == "TOTAL"].iloc[0]
+    df = df[~df["lead_type"].isin(["TOTAL", "(missing)"])].sort_values("change_per_1k")
+    fig, ax = plt.subplots(figsize=(9, 3.8))
+    colors = [ACCENT if c < 0 else MUTED for c in df["change_per_1k"]]
+    ax.barh(df["lead_type"], df["change_per_1k"], color=colors, height=0.6)
+    for yi, (c, b, m) in enumerate(zip(df["change_per_1k"], df["base_wins_per_1k_leads"],
+                                       df["may_wins_per_1k_leads"])):
+        x = c - 0.6 if c < 0 else c + 0.6
+        ax.text(x, yi, f"{c:+.1f}  ({b:.1f} -> {m:.1f})", va="center",
+                ha="right" if c < 0 else "left", color=INK, fontsize=8)
+    ax.axvline(0, color=INK, linewidth=0.8)
+    ax.set_xlim(df["change_per_1k"].min() - 14, df["change_per_1k"].max() + 12)
+    ax.set_xlabel("change in 90-day wins per 1,000 leads, May vs Jan-Apr 2018 "
+                  "(Jan-Apr -> May in brackets)", fontsize=9)
+    ax.set_title(f"May signed {-total['change_per_1k']:.1f} fewer sellers per 1,000 leads: "
+                 "which types went missing",
+                 loc="left", color=INK, fontsize=10)
+    _style(ax, grid_axis="x")
+    return _save(fig, "07_may_drop_by_lead_type.png")
+
+
 def write_report(results: dict[str, pd.DataFrame]) -> Path:
     lines = [
         "# Results",
@@ -210,6 +232,7 @@ def main() -> None:
     print(chart_may_bridge(results["04_may_drop_mix_vs_rate"]))
     print(chart_sales_capacity(results["05_sales_capacity"], results["06_rep_concentration"]))
     print(chart_pages_within_channel(results["08_pages_within_channel"]))
+    print(chart_may_by_lead_type(results["10_may_drop_by_lead_type"]))
     print(write_report(results))
 
 
