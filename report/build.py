@@ -144,6 +144,41 @@ def chart_sales_capacity(cap: pd.DataFrame, conc: pd.DataFrame) -> Path:
     return _save(fig, "05_sales_capacity.png")
 
 
+PAGE_CHANNELS = ["organic_search", "paid_search", "social", "unknown"]
+
+
+def chart_pages_within_channel(df: pd.DataFrame) -> Path:
+    df = df[df["origin"].isin(PAGE_CHANNELS)]
+    fig, ax = plt.subplots(figsize=(9, 5.6))
+    y, ticks, labels = 0.0, [], []
+    for origin in PAGE_CHANNELS:
+        group = df[df["origin"] == origin]
+        ax.text(-0.5, y - 0.15, f"{origin} (all pages {group['channel_pct_won_90d'].iloc[0]:.1f}%)",
+                color=INK, fontsize=9, fontweight="bold", va="top")
+        y += 0.9
+        top = y
+        rate = group["channel_pct_won_90d"].iloc[0]
+        for _, row in group.iterrows():
+            ax.hlines(y, row["ci95_low"], row["ci95_high"], color=MUTED, linewidth=2)
+            ax.scatter(row["pct_won_90d"], y, color=ACCENT, s=40, zorder=3)
+            ax.text(max(row["ci95_high"], rate) + 0.6, y, f"{row['pct_won_90d']:.1f}%  ({row['mqls']} leads)",
+                    va="center", color=INK, fontsize=8)
+            ticks.append(y)
+            labels.append(f"page {row['page']}")
+            y += 1
+        ax.vlines(rate, top - 0.4, y - 0.6, color=INK, linestyle="--", linewidth=1)
+        y += 0.5
+    ax.set_yticks(ticks, labels, fontsize=8)
+    ax.set_ylim(y - 0.5, -0.8)
+    ax.set_xlim(0, df["ci95_high"].max() + 9)
+    ax.set_xlabel("% signed within 90 days (bar = 95% interval; dashed = channel's rate "
+                  "across all its pages)", fontsize=9)
+    ax.set_title("Same channel, different landing page: pages with 50+ leads from the channel",
+                 loc="left", color=INK, fontsize=10)
+    _style(ax, grid_axis="x")
+    return _save(fig, "06_pages_within_channel.png")
+
+
 def write_report(results: dict[str, pd.DataFrame]) -> Path:
     lines = [
         "# Results",
@@ -174,6 +209,7 @@ def main() -> None:
     print(chart_time_to_close(results["03_time_to_close"]))
     print(chart_may_bridge(results["04_may_drop_mix_vs_rate"]))
     print(chart_sales_capacity(results["05_sales_capacity"], results["06_rep_concentration"]))
+    print(chart_pages_within_channel(results["08_pages_within_channel"]))
     print(write_report(results))
 
 

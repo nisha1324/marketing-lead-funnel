@@ -146,3 +146,52 @@ def test_rep_concentration_sums_to_wins(con):
     assert df["wins"].sum() == 4                     # all in-window wins belong to sr1
     assert df.loc[0, "pct_of_wins"] == 100.0 and df.loc[0, "cum_pct_of_wins"] == 100.0
     assert df["srs_with_a_win"].iloc[0] == 1
+
+
+def add_page_leads(con, page: str, origin: str, n: int, wins: int, month: str = "2018-02") -> None:
+    """Insert n leads on one landing page; the first `wins` sign 5 days later."""
+    for i in range(n):
+        mql = f"{page}_{i}"
+        con.execute("INSERT INTO mqls VALUES (?, ?::DATE, ?, ?)", [mql, f"{month}-01", page, origin])
+        if i < wins:
+            con.execute("INSERT INTO closed_deals (mql_id, seller_id, won_date) VALUES (?, ?, ?::TIMESTAMP)",
+                        [mql, f"s_{mql}", f"{month}-06 10:00:00"])
+
+
+def test_landing_pages_keep_big_pages_and_pool_the_tail(con):
+    add_page_leads(con, "bigpage_long_id", "paid_search", n=50, wins=10)
+    df = run(con, "07_landing_pages").set_index("page")
+    big = df.loc["bigpage_"]                         # ids are cut to 8 characters
+    assert (big["mqls"], big["won_90d"], big["pct_won_90d"]) == (50, 10, 20.0)
+    assert (big["main_origin"], big["main_origin_pct"]) == ("paid_search", 100.0)
+    assert big["ci95_low"] < 20.0 < big["ci95_high"]
+    tail = df.loc["other pages"]                     # lp1, lp2, lp3 have < 50 leads
+    assert (tail["pages"], tail["mqls"], tail["won_90d"]) == (3, 6, 3)
+    assert pd.isna(tail["main_origin"])
+    assert df.index[-1] == "other pages"
+    assert df["pct_of_mqls"].sum() == pytest.approx(100, abs=0.2)
+
+
+def test_pages_within_channel_compare_to_channel_rate(con):
+    add_page_leads(con, "bigpage_long_id", "paid_search", n=50, wins=10)
+    con.execute("INSERT INTO mqls VALUES ('l10', DATE '2018-02-03', 'lp1', 'paid_search')")
+    df = run(con, "08_pages_within_channel")
+    assert len(df) == 1                              # only one (channel, page) pair has 50+
+    row = df.iloc[0]
+    assert (row["origin"], row["page"], row["mqls"]) == ("paid_search", "bigpage_", 50)
+    assert row["pct_of_channel_mqls"] == pytest.approx(100 * 50 / 51, abs=0.05)
+    assert row["channel_pct_won_90d"] == pytest.approx(100 * 10 / 51, abs=0.05)
+
+
+def test_may_drop_by_page_matches_channel_split_total(con):
+    add_page_leads(con, "bigpage_long_id", "paid_search", n=50, wins=10, month="2018-05")
+    by_page = run(con, "09_may_drop_by_page").set_index("page")
+    by_channel = run(con, "04_may_drop_mix_vs_rate").set_index("origin")
+    page_total, channel_total = by_page.loc["TOTAL"], by_channel.loc["TOTAL"]
+    # same leads, different grouping: the overall change must be identical
+    change = channel_total["mix_effect_pts"] + channel_total["rate_effect_pts"]
+    assert page_total["mix_effect_pts"] + page_total["rate_effect_pts"] == pytest.approx(change, abs=0.02)
+    assert page_total["may_mqls"] == 53
+    body = by_page.drop(index="TOTAL")
+    assert body["mix_effect_pts"].sum() == pytest.approx(page_total["mix_effect_pts"], abs=0.02)
+
