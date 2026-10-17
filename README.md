@@ -1,6 +1,6 @@
 # Marketing Lead Funnel Analysis (DuckDB + SQL)
 
-> **Status: in progress.** Parts 1 and 2a are done: conversion by month, channel and speed, the May drop, and sales-team capacity. Next: landing pages and the lead profile, then what signed sellers actually sold. See [Roadmap](#roadmap).
+> **Status: in progress.** Parts 1 and 2 are done: conversion by month, channel and speed, the May drop, sales-team capacity, landing pages and the profile of won deals. Next: what signed sellers actually sold. See [Roadmap](#roadmap).
 
 **Business question:** a marketplace recruits sellers through a marketing and sales funnel: a business signs up on a landing page, a sales development rep (SDR) qualifies it, and a sales rep (SR) tries to close it. **Which marketing channels bring leads that actually sign, how fast do deals close, and why did conversion fall in May 2018?** The answers decide where marketing spends its budget and how sales should prioritise its follow-up.
 
@@ -12,6 +12,9 @@
 - **May's drop was a conversion problem, not a lead-mix problem.** Of the 3.75-point fall, the channel mix explains −0.41 points and weaker conversion *within* channels −3.34 points (89%). Every large channel fell, e.g. paid search 13.4% → 9.0%.
 - **Fewer reps is a weak explanation.** 15 reps closed a deal from the May cohort, the fewest of any cohort (16–20 in January–April), but wins per rep (8.7) were in line with February and March (8.3–8.4).
 - **Wins lean on a few reps.** The top 5 of 21 reps won 51% of 2018 wins, and the top rep won 16%.
+- **Three landing pages bring over half the sellers.** They took 29.6% of leads but 53.0% of 90-day wins, each converting at about 20%. Within organic search alone, the best page converts at 22.0% and the weakest at 4.7%.
+- **The "unknown" channel is mostly one page.** 536 of the 813 unknown-origin leads, and 119 of their 157 wins, came in through page `b76ef374`, which gives marketing ops a concrete place to start fixing the tracking.
+- **May's missing sellers were mostly mid-sized online sellers.** 90-day wins per 1,000 leads fell from 121.2 to 83.7; `online_medium` sellers account for 27.0 of that 37.5 drop (72%). Splitting the drop by landing page instead of channel gives the same answer: the page mix explains only −0.40 points.
 
 ## Data
 [Marketing Funnel by Olist](https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist): real, anonymised data on 8,000 marketing-qualified leads (MQLs) who asked to sell on the Olist marketplace between June 2017 and June 2018, randomly sampled by Olist from all its MQLs, plus the 842 of them that signed. Kaggle needs a login, so `scripts/download_data.py` fetches the two CSVs (~0.9 MB) from public GitHub mirrors ([`mara/mara-olist-ecommerce-data`](https://github.com/mara/mara-olist-ecommerce-data), with [`patterns-app/public_data`](https://github.com/patterns-app/public_data) as a fallback). Both mirrors serve byte-identical files whose total size matches the Kaggle listing exactly. The script pins their SHA-256 hashes and stops if a file changes. The raw CSVs aren't committed.
@@ -109,14 +112,67 @@ Because nearly every channel fell together, the cause is more likely on the sale
 
 **What this can't show.** Reps are recorded only on won deals, so a rep with no win from a cohort is invisible, and the counts are a lower bound. Leads per rep aren't in the data, so workload can't be measured directly; "wins per rep" is a proxy, not a win rate. Queries: [`05_sales_capacity.sql`](sql/05_sales_capacity.sql), [`06_rep_concentration.sql`](sql/06_rep_concentration.sql).
 
+### 6. Landing pages: three pages bring half the sellers, and pages differ within a channel
+The 5,998 leads arrived through 407 landing pages. 18 pages have 50+ leads; the other 389 pages share 31.6% of leads and convert at 8.2%.
+
+| Page | Leads | % of wins | Conversion | 95% interval | Main channel (share of the page's leads) |
+|---|---:|---:|---:|---|---|
+| b76ef374 | 751 | 22.4 | 20.2% | 17.5–23.3 | unknown (71.4%) |
+| 22c29808 | 726 | 22.0 | 20.5% | 17.7–23.6 | organic_search (56.9%) |
+| 58326e62 | 495 | 3.2 | **4.4%** | 3.0–6.6 | social (93.7%), live from March |
+| ce1a65ab | 346 | 6.9 | 13.6% | 10.4–17.6 | organic_search (59.8%) |
+| 88740e65 | 306 | 3.1 | 6.9% | 4.5–10.3 | social (93.1%), January–March only |
+| 40dec9f3 | 297 | 8.6 | 19.5% | 15.4–24.4 | paid_search (73.1%) |
+| f017be4d | 224 | 2.4 | 7.1% | 4.4–11.3 | organic_search (63.8%) |
+| e492ee5e | 214 | 1.2 | 3.7% | 1.9–7.2 | organic_search (39.7%) |
+
+Pages are ids only (the data is anonymised), so we can't see what is on them. The top three pages (`b76ef374`, `22c29808`, `40dec9f3`) took 29.6% of leads and **53.0% of 90-day wins**.
+
+Many pages serve mostly one channel, so a page's rate partly reflects its channel. Comparing pages **inside the same channel** removes that:
+
+![Landing pages within the same channel](results/charts/06_pages_within_channel.png)
+
+- **Organic search: 22.0% on one page, 4.7–7.0% on two others.** Page `22c29808` converts 22.0% of its 413 organic-search leads (18.3–26.3); `f017be4d` converts 7.0% (3.8–12.4) and `e492ee5e` 4.7% (1.8–11.5). The intervals don't overlap, so the gap isn't noise. The channel as a whole converts at 12.3%.
+- **Paid search: `40dec9f3` converts 19.4%** of its 217 paid leads (14.6–25.1), against 12.4% for the channel.
+- **Social: the page changed in March.** Page `88740e65` ran January–March at 7.0% of its social leads; `58326e62` took over from March at 4.1%. The intervals overlap (4.6–10.6 vs 2.6–6.3), so this sample can't show that the new page is worse, but it is the first thing to check for social.
+- **Unknown origin is concentrated on one page.** `b76ef374` holds 536 of the 813 unknown-origin leads (65.9%) and 119 of their 157 wins, converting at 22.2%. Whatever route feeds this page is missing its tracking tag.
+
+A page id can stand for a campaign or a target audience rather than a design, so these gaps are a reason to A/B test the weaker pages against the strong ones, not proof that the page layout causes them. Queries: [`07_landing_pages.sql`](sql/07_landing_pages.sql), [`08_pages_within_channel.sql`](sql/08_pages_within_channel.sql).
+
+### 7. May's drop by page and by type of seller
+**By page, the answer doesn't change.** Repeating Part 1's shift-share split with landing pages as the groups gives a page-mix effect of −0.40 points and a within-page effect of −3.35 points (channels: −0.41 / −3.34). The social page switch moved May's leads onto a weaker page (−0.74 points), partly offset by the old social page dropping out (+0.34) and smaller shifts elsewhere. About half the within-page fall (−1.66 points) is in the long tail of small pages, which fell from 9.4% to 4.5%; the two biggest pages also fell (`22c29808` 21.6% → 16.8%, `b76ef374` 20.8% → 17.8%). Query: [`09_may_drop_by_page.sql`](sql/09_may_drop_by_page.sql).
+
+**By lead type, the drop is concentrated.** The sales rep records a lead type only when a deal is won, so a conversion rate per type can't be computed. Instead, each type's 90-day wins are scaled to all leads in the period; these add up to the overall rate.
+
+![May's drop by lead type](results/charts/07_may_drop_by_lead_type.png)
+
+| Lead type | 90-day wins (Jan–May) | Wins per 1,000 leads, Jan–Apr | May | Change | Share of the drop |
+|---|---:|---:|---:|---:|---:|
+| online_medium | 274 | 51.5 | 24.6 | **−27.0** | **71.9%** |
+| online_big | 100 | 17.9 | 12.3 | −5.6 | 14.9% |
+| online_small | 57 | 10.4 | 6.1 | −4.3 | 11.4% |
+| offline | 85 | 14.7 | 12.3 | −2.4 | 6.4% |
+| industry | 102 | 17.5 | 15.3 | −2.1 | 5.6% |
+| online_beginner | 42 | 6.4 | 9.2 | +2.8 | −7.5% |
+| online_top | 13 | 1.9 | 3.1 | +1.2 | −3.1% |
+| **All** | **678** | **121.2** | **83.7** | **−37.5** | **100%** |
+
+(5 wins with no lead type are left out of the rows but included in the total.) Mid-sized online sellers are the biggest group of wins (40.4%), and in May they signed at under half the earlier rate (32 wins against an average of 60.5 a month in January–April). The other groups changed by a few wins each. So May's problem was mostly with one kind of prospect, the established mid-sized online seller. Query: [`10_may_drop_by_lead_type.sql`](sql/10_may_drop_by_lead_type.sql).
+
+### 8. What the funnel signs: business segments of won deals
+Of the 781 sellers signed from the 2018 cohorts, the top 6 of 33 segments make up 56.2%: home décor (12.3%), health & beauty (11.4%), car accessories (9.0%), construction tools / house & garden (7.9%), household utilities (7.9%) and audio/video electronics (7.7%). 28.6% of all signed sellers are manufacturers and the rest resellers, but this varies a lot by segment: 55.2% in home décor against 14.3% in car accessories, 8.3% in audio/video and none of 31 in computers. 54.5% of these wins closed within 14 days; audio/video closed slower (43.3% within 14 days, 60 wins). Segment counts are small, so these are a profile for Part 3 rather than findings to act on alone. Query: [`11_won_segments.sql`](sql/11_won_segments.sql).
+
 ## So what for the business (so far)
 1. **Rebalance social and email towards search.** They supply nearly a quarter of leads but a tenth of sellers. Either cut spend, or add a qualification step (form questions, a self-serve check) so SDRs don't spend time on leads that rarely sign. *Owner: marketing lead.*
 2. **Fix lead-source tracking before judging channel ROI.** A quarter of signed sellers have no channel, so every channel's cost per seller is wrong today. *Owner: marketing ops.*
 3. **Front-load sales follow-up.** Most wins happen in the first 14 days; a lead untouched in that window is losing its best odds. *Owner: SDR team lead.*
 4. **Treat May as a sales-side alert, but look at process before headcount.** Lead quality per channel didn't explain the fall, and the rep count dipped only slightly (15, against 16–20), so check follow-up speed and lead handling first. Lead contact dates would settle it. *Owner: sales manager.*
 5. **Reduce reliance on the top reps.** The top 5 of 21 reps won half of 2018's wins. Pair them with other reps on large leads, and track win volume by rep so that a departure is visible early. *Owner: sales manager.*
+6. **A/B test the weak landing pages against the strong ones.** Within organic search, page `22c29808` converts about 3–5× better than `f017be4d` and `e492ee5e`. Route part of the weak pages' traffic to the strong page (or copy its form and pitch) and compare. Check the March social page switch (`88740e65` → `58326e62`) the same way. *Owner: marketing / web team.*
+7. **Start the tracking fix with page `b76ef374`.** It carries two thirds of the unknown-origin leads and three quarters of their wins, so finding out what links to it should recover most of the missing attribution. *Owner: marketing ops.*
+8. **Review how mid-sized online sellers were handled in May.** They account for 72% of May's fall in wins per lead. Look at what changed for them (pitch, pricing or terms, which reps they went to) before treating May as a general slowdown. *Owner: sales manager.*
 
-These are first-pass recommendations. The final set will be ranked once Parts 2–3 are done.
+These are first-pass recommendations. The final set will be ranked once Part 3 is done.
 
 ## How to run
 ```bash
@@ -131,13 +187,15 @@ pytest                                 # offline tests on a fixture database
 ## Roadmap
 - [x] Part 1: conversion by month and channel, time to close, May drop decomposition
 - [x] Part 2a: sales-team capacity (reps with a win per cohort, wins per rep, rep concentration)
-- [ ] Part 2b: lead-profile drivers (landing-page conversion with small-n intervals; business segment and lead type of won deals)
+- [x] Part 2b: landing pages (within-channel comparison with 95% intervals, May split by page) and the profile of won deals (lead type, business segment)
 - [ ] Part 3: after the deal: join won sellers to the [Olist e-commerce orders](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) by `seller_id` to see which channels bring sellers who actually sell
 - [ ] Final TL;DR, ranked recommendations with owners, limitations
 
 ## Limitations (so far)
 - **One channel per lead.** Olist notes a lead may have come from several sources; the data records one origin.
 - **Reps are visible only through their wins.** Win rates by rep can't be measured, and the rep counts are a lower bound (see Part 2).
+- **Lead type and segment only for wins.** They are recorded when a deal is won, so Part 2b describes the sellers who signed and scales wins to all leads; it can't give a conversion rate per type or segment.
+- **Pages are anonymous ids.** The data says which page a lead used, not what was on it, so page gaps can't be pinned on design.
 - **Won deals only.** There is no record of lost deals or SDR contact dates, so the funnel has two measurable steps (lead → signed), not every stage.
 - **A sample.** The 8,000 leads are Olist's random sample of its MQLs, so counts are a fraction of the real volume; rates are what matter.
 - **2017 excluded** from rates because the deal records start in December 2017 (see Data).
