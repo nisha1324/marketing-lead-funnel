@@ -1,6 +1,6 @@
 # Marketing Lead Funnel Analysis (DuckDB + SQL)
 
-> **Status: in progress.** Parts 1 and 2 are done: conversion by month, channel and speed, the May drop, sales-team capacity, landing pages and the profile of won deals. Next: what signed sellers actually sold. See [Roadmap](#roadmap).
+> **Status: in progress.** Parts 1 and 2 are done (conversion by month, channel and speed, the May drop, sales-team capacity, landing pages and the profile of won deals), and so is Part 3a: whether signed sellers actually start selling, by channel and lead type. Next: Part 3b (segments, landing pages and close speed after the deal). See [Roadmap](#roadmap).
 
 **Business question:** a marketplace recruits sellers through a marketing and sales funnel: a business signs up on a landing page, a sales development rep (SDR) qualifies it, and a sales rep (SR) tries to close it. **Which marketing channels bring leads that actually sign, how fast do deals close, and why did conversion fall in May 2018?** The answers decide where marketing spends its budget and how sales should prioritise its follow-up.
 
@@ -15,6 +15,9 @@
 - **Three landing pages bring over half the sellers.** They took 29.6% of leads but 53.0% of 90-day wins, each converting at about 20%. Within organic search alone, the best page converts at 22.0% and the weakest at 4.7%.
 - **The "unknown" channel is mostly one page.** 536 of the 813 unknown-origin leads, and 119 of their 157 wins, came in through page `b76ef374`, which gives marketing ops a concrete place to start fixing the tracking.
 - **May's missing sellers were mostly mid-sized online sellers.** 90-day wins per 1,000 leads fell from 121.2 to 83.7; `online_medium` sellers account for 27.0 of that 37.5 drop (72%). Splitting the drop by landing page instead of channel gives the same answer: the page mix explains only −0.40 points.
+- **Signing isn't selling: 43.1% of signed sellers made a sale within 90 days.** Of 643 sellers signed from December 2017 to May 2018, only 16.8% sold within 30 days, and 48.4% had no sale at all in the order data by 2018-08-21. The median first sale came 39 days after the deal.
+- **Paid search overtakes organic search after the deal.** Both channels sign 12.3–12.4% of their leads, but 55.0% of paid-search sellers start selling within 90 days against 39.1% for organic search. That is about 68 vs 48 selling sellers per 1,000 leads.
+- **Big online sellers start selling; offline businesses mostly don't.** 63.2% of `online_big` sellers made a sale within 90 days (active sellers' median: R$821), against 23.8% of `offline` and 35.6% of `industry` sellers.
 
 ## Data
 [Marketing Funnel by Olist](https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist): real, anonymised data on 8,000 marketing-qualified leads (MQLs) who asked to sell on the Olist marketplace between June 2017 and June 2018, randomly sampled by Olist from all its MQLs, plus the 842 of them that signed. Kaggle needs a login, so `scripts/download_data.py` fetches the two CSVs (~0.9 MB) from public GitHub mirrors ([`mara/mara-olist-ecommerce-data`](https://github.com/mara/mara-olist-ecommerce-data), with [`patterns-app/public_data`](https://github.com/patterns-app/public_data) as a fallback). Both mirrors serve byte-identical files whose total size matches the Kaggle listing exactly. The script pins their SHA-256 hashes and stops if a file changes. The raw CSVs aren't committed.
@@ -25,12 +28,18 @@
 |---|---:|---|
 | `mqls` | 8,000 | lead id, first contact date (2017-06-14 to 2018-05-31), landing page, origin (channel) |
 | `closed_deals` | 842 | won date (2017-12-05 to 2018-11-14), seller id, SDR, SR, business segment, lead type, self-declared profile |
+| `orders` (Part 3) | 99,441 | order id, status, purchase time (2016-09-04 to 2018-10-17) |
+| `order_items` (Part 3) | 112,650 | order id, seller id, item price |
+
+**Part 3: what signed sellers sold.** The won deals join to Olist's [Brazilian E-Commerce Public Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) by `seller_id` (© Olist, also CC BY-NC-SA 4.0). The download script takes only the orders and order items (~33 MB), from Olist's own GitHub repo ([`olist/work-at-olist-data`](https://github.com/olist/work-at-olist-data)) with the mara mirror as fallback. The two copies have the same rows but aren't byte-identical: the mara copy quotes every field, and 67 order lines have a different `freight_value`. The analysis doesn't use freight, so each source has its own pinned hash. 380 of the 842 signed sellers appear in the orders, and none has an order dated before it signed.
+
+**Selling window.** The order data has 176–372 orders a day in the four weeks to 2018-08-21; from 2018-08-22 it falls almost every day (187, 144, 99 … 14 orders on 2018-08-29), so the snapshot was taken while recent orders were still coming in. Orders from 2018-08-22 on are ignored. Each seller is followed for 90 days after signing, so Part 3 uses the **643 sellers signed from 2017-12-05 to 2018-05-23**. A *sale* is an order that wasn't cancelled or unavailable; *sales value* is the item price without freight.
 
 **Analysis window: leads first contacted in Jan–May 2018 (5,998 leads).** The deal records start on 2017-12-05, so a 2017 lead that signed before then simply isn't in the data. The June–October 2017 cohorts show no win within 90 days at all, which is a recording gap, not a sales result. Every 2018 cohort is observed for at least 167 days, so a 90-day conversion window is complete for all of them.
 
 ## Approach
-1. **Download** (`scripts/download_data.py`): two mirrors, SHA-256 checked.
-2. **Load** (`pipeline/build_db.py`): typed DuckDB tables plus a `leads` view (cohort month, days to close, a 90-day win flag, the analysis-window flag). Data-quality checks run on load and the build stops if one fails: unique lead ids, unique sellers, no deal without a lead, no wins before deal tracking started. Reported, not dropped: 1 deal dated 2 days before its first contact, 60 leads with no origin, and only 45 of 842 deals with a declared monthly revenue above 0 (so revenue can't be analysed from this field).
+1. **Download** (`scripts/download_data.py`): two sources per file, SHA-256 checked.
+2. **Load** (`pipeline/build_db.py`): typed DuckDB tables plus a `leads` view (cohort month, days to close, a 90-day win flag, the analysis-window flag). Part 3 adds the `orders` and `order_items` tables and a `signed_sellers` view (one row per won deal: first sale, orders and sales value in the 90 days after signing). Data-quality checks run on load and the build stops if one fails: unique lead ids, unique sellers, no deal without a lead, no wins before deal tracking started, unique order lines, no order line without an order, and no signed seller with an order before it signed. Reported, not dropped: 1 deal dated 2 days before its first contact, 60 leads with no origin, and only 45 of 842 deals with a declared monthly revenue above 0 (so revenue can't be analysed from this field).
 3. **Query** ([`sql/`](sql/)): each file answers one business question and is commented.
 4. **Report** (`report/build.py`): runs every query and writes [`results/REPORT.md`](results/REPORT.md), CSVs and charts.
 
@@ -162,6 +171,61 @@ A page id can stand for a campaign or a target audience rather than a design, so
 ### 8. What the funnel signs: business segments of won deals
 Of the 781 sellers signed from the 2018 cohorts, the top 6 of 33 segments make up 56.2%: home décor (12.3%), health & beauty (11.4%), car accessories (9.0%), construction tools / house & garden (7.9%), household utilities (7.9%) and audio/video electronics (7.7%). 28.6% of all signed sellers are manufacturers and the rest resellers, but this varies a lot by segment: 55.2% in home décor against 14.3% in car accessories, 8.3% in audio/video and none of 31 in computers. 54.5% of these wins closed within 14 days; audio/video closed slower (43.3% within 14 days, 60 wins). Segment counts are small, so these are a profile for Part 3 rather than findings to act on alone. Query: [`11_won_segments.sql`](sql/11_won_segments.sql).
 
+### 9. After the deal: fewer than half of signed sellers start selling
+![Time to first sale](results/charts/08_time_to_first_sale.png)
+
+Of the 643 sellers signed from December 2017 to May 2018:
+
+| Milestone after the deal | Sellers | % of signed sellers |
+|---|---:|---:|
+| first sale within 7 days | 13 | 2.0 |
+| within 14 days | 41 | 6.4 |
+| within 30 days | 108 | 16.8 |
+| within 60 days | 204 | 31.7 |
+| within 90 days | 277 | **43.1** |
+| first sale after day 90 (before 2018-08-22) | 55 | 8.6 |
+| no sale in the order data | 311 | **48.4** |
+
+- **Getting to the first sale is slow.** Among sellers who sold within 90 days, the median first sale came 39 days after the deal. Deals close fast (Part 1: most within two weeks), but revenue starts about five weeks later.
+- **Nearly half never show a sale.** 311 sellers (48.4%) had no order by 2018-08-21, even though each had at least 90 days. Some may sell in orders missing from the public data (see Limitations), so treat 43.1% as a lower bound, but a gap this large is worth checking against Olist's internal seller data.
+- **By month signed**, 38.9–51.0% sold within 90 days (May: 51.0% of 100). The 90-day sales value of the 277 active sellers was R$328,038, with a median of R$324 per active seller. One seller made 23.1% of it, and 56.4% of February's, so sales-value totals swing with single accounts; the activation rate is the steadier measure.
+
+Queries: [`12_seller_activation.sql`](sql/12_seller_activation.sql), [`13_time_to_first_sale.sql`](sql/13_time_to_first_sale.sql).
+
+### 10. Which channels and kinds of seller start selling
+![Activation by channel and lead type](results/charts/09_activation_by_group.png)
+
+| Channel | Signed sellers | Sold ≤ 90 days | 95% interval | Lead → deal (Part 1) | Selling sellers per 1,000 leads | Share of 90-day sales value |
+|---|---:|---:|---|---:|---:|---:|
+| organic_search | 202 | 39.1% | 32.6–46.0 | 12.3% | 48.0 | 27.3% |
+| unknown | 147 | 40.1% | 32.6–48.2 | 19.3% | **77.5** | 38.1% |
+| paid_search | 140 | **55.0%** | 46.7–63.0 | 12.4% | **68.4** | 22.6% |
+| social | 54 | 42.6% | 30.3–55.8 | 5.2% | 22.3 | 3.9% |
+| direct_traffic | 49 | 44.9% | 31.9–58.7 | 12.9% | 57.9 | 2.7% |
+| smaller channels (pooled) | 51 | 33.3% | 22.0–47.0 | 6.8% | 22.7 | 5.3% |
+
+"Selling sellers per 1,000 leads" multiplies the channel's lead-to-deal rate (Part 1, 2018 cohorts) by its activation rate. The two rates come from overlapping but not identical groups, so it's an estimate.
+
+- **Paid search beats organic search once selling is counted.** The two channels sign leads at the same rate, but paid-search sellers start selling more often (55.0% vs 39.1%; the intervals only just don't overlap: organic up to 46.0%, paid from 46.7%). Per 1,000 leads that's about 68 selling sellers vs 48.
+- **Social's problem is the lead step, not the sellers.** Social sellers who sign start selling at about the average rate (42.6%, interval 30.3–55.8), so social stays near the bottom (~22 per 1,000 leads) mainly because few of its leads sign.
+- **Unknown-origin leads stay the most valuable** (~78 selling sellers per 1,000 leads) and carry 38.1% of the 90-day sales value, though one seller makes 60.5% of that channel's total. This makes the tracking fix (recommendation 7) more urgent.
+
+| Lead type | Signed sellers | Sold ≤ 90 days | 95% interval | Active sellers' median sales | Share of 90-day sales value |
+|---|---:|---:|---|---:|---:|
+| online_medium | 263 | 46.4% | 40.5–52.4 | R$260 | 26.9% |
+| online_big | 95 | **63.2%** | 53.1–72.2 | **R$821** | **46.9%** |
+| industry | 90 | 35.6% | 26.4–45.9 | R$189 | 4.9% |
+| offline | 80 | **23.8%** | 15.8–34.1 | R$190 | 2.2% |
+| online_small | 62 | 38.7% | 27.6–51.2 | R$295 | 6.3% |
+| online_beginner | 37 | 32.4% | 19.6–48.5 | R$409 | 3.2% |
+| other types (pooled) | 16 | 50.0% | 28.0–72.0 | R$323 | 9.6% |
+
+- **`online_big` sellers are 14.8% of signed sellers but 46.9% of the 90-day sales value.** They are the most likely to start selling (63.2%), and an active one sells a median of R$821 in 90 days, about 3× an `online_medium` seller. One of them makes 49.2% of the group's total, but the activation rate and median barely depend on it.
+- **Offline and industry sellers sign but rarely start selling.** Only 23.8% of `offline` and 35.6% of `industry` sellers made a sale within 90 days; their intervals sit below `online_big`'s. One plausible reason is that businesses without an online shop need more help to list products, an onboarding cost the deal doesn't show; that is a hypothesis to check with the onboarding team.
+- **May's missing sellers were average sellers.** `online_medium`, the type behind most of May's drop (section 7), starts selling at 46.4%, close to the 43.1% average.
+
+Queries: [`14_activation_by_channel.sql`](sql/14_activation_by_channel.sql), [`15_activation_by_lead_type.sql`](sql/15_activation_by_lead_type.sql).
+
 ## So what for the business (so far)
 1. **Rebalance social and email towards search.** They supply nearly a quarter of leads but a tenth of sellers. Either cut spend, or add a qualification step (form questions, a self-serve check) so SDRs don't spend time on leads that rarely sign. *Owner: marketing lead.*
 2. **Fix lead-source tracking before judging channel ROI.** A quarter of signed sellers have no channel, so every channel's cost per seller is wrong today. *Owner: marketing ops.*
@@ -172,13 +236,17 @@ Of the 781 sellers signed from the 2018 cohorts, the top 6 of 33 segments make u
 7. **Start the tracking fix with page `b76ef374`.** It carries two thirds of the unknown-origin leads and three quarters of their wins, so finding out what links to it should recover most of the missing attribution. *Owner: marketing ops.*
 8. **Review how mid-sized online sellers were handled in May.** They account for 72% of May's fall in wins per lead. Look at what changed for them (pitch, pricing or terms, which reps they went to) before treating May as a general slowdown. *Owner: sales manager.*
 
+9. **Measure the funnel to the first sale, not to the signature.** Only 43.1% of signed sellers sold within 90 days, and the median first sale came 39 days after the deal. Add "first sale within 30/90 days" to the sales and marketing scorecards, and have onboarding contact every seller with no sale by day 30 (most of them: 83.2%), starting with the lead types least likely to sell (recommendation 11). *Owner: head of sales / seller onboarding.*
+10. **Value paid search on selling sellers.** It signs leads at the same rate as organic search but brings ~68 vs ~48 selling sellers per 1,000 leads. Judge its budget on that, not on signatures. *Owner: marketing lead.*
+11. **Give offline and industry sellers an onboarding track, or qualify them harder.** Only 23.8% and 35.6% of them start selling within 90 days, against 63.2% of big online sellers. Either help them list (catalogue upload, photos) or weigh lead type when prioritising follow-up. *Owner: sales manager / seller onboarding.*
+
 These are first-pass recommendations. The final set will be ranked once Part 3 is done.
 
 ## How to run
 ```bash
 python -m venv .venv && source .venv/bin/activate   # or: uv venv
 pip install -r requirements.txt
-python scripts/download_data.py        # ~0.9 MB, hash-checked
+python scripts/download_data.py        # ~34 MB (funnel + orders), hash-checked
 python -m pipeline.build_db            # DuckDB + data-quality checks
 python -m report.build                 # results/REPORT.md, CSVs, charts
 pytest                                 # offline tests on a fixture database
@@ -188,7 +256,8 @@ pytest                                 # offline tests on a fixture database
 - [x] Part 1: conversion by month and channel, time to close, May drop decomposition
 - [x] Part 2a: sales-team capacity (reps with a win per cohort, wins per rep, rep concentration)
 - [x] Part 2b: landing pages (within-channel comparison with 95% intervals, May split by page) and the profile of won deals (lead type, business segment)
-- [ ] Part 3: after the deal: join won sellers to the [Olist e-commerce orders](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) by `seller_id` to see which channels bring sellers who actually sell
+- [x] Part 3a: after the deal: won sellers joined to the [Olist e-commerce orders](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) by `seller_id`; 90-day activation, time to first sale, and activation by channel and lead type
+- [ ] Part 3b: activation by business segment and landing page, and whether fast-closing deals become better sellers
 - [ ] Final TL;DR, ranked recommendations with owners, limitations
 
 ## Limitations (so far)
@@ -199,3 +268,6 @@ pytest                                 # offline tests on a fixture database
 - **Won deals only.** There is no record of lost deals or SDR contact dates, so the funnel has two measurable steps (lead → signed), not every stage.
 - **A sample.** The 8,000 leads are Olist's random sample of its MQLs, so counts are a fraction of the real volume; rates are what matter.
 - **2017 excluded** from rates because the deal records start in December 2017 (see Data).
+- **The public order data may not be complete.** It holds ~99k orders and isn't documented as a complete record of every order on the marketplace, so "no sale" means no sale in this data. Activation rates are a lower bound, and the comparison between groups is more reliable than the level.
+- **Sales value is concentrated.** One seller makes 23.1% of the 90-day sales value, so totals and shares by group move with single accounts. Part 3 leans on activation rates and medians for that reason.
+- **A fixed 90-day window.** Sellers signed after 2018-05-23 can't be followed for 90 days before the order data thins out, so Part 3 covers sellers signed December 2017 to May 2018 (including 31 from 2017 leads).
