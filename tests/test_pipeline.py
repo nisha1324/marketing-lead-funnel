@@ -11,6 +11,11 @@ DEAL_COLS = ["mql_id", "seller_id", "sdr_id", "sr_id", "won_date", "business_seg
              "lead_type", "lead_behaviour_profile", "has_company", "has_gtin",
              "average_stock", "business_type", "declared_product_catalog_size",
              "declared_monthly_revenue"]
+ORDER_COLS = ["order_id", "customer_id", "order_status", "order_purchase_timestamp",
+              "order_approved_at", "order_delivered_carrier_date",
+              "order_delivered_customer_date", "order_estimated_delivery_date"]
+ITEM_COLS = ["order_id", "order_item_id", "product_id", "seller_id", "shipping_limit_date",
+             "price", "freight_value"]
 
 
 def deal(mql_id: str, won_date: str) -> list:
@@ -44,6 +49,28 @@ def con(tmp_path):
         ],
         columns=DEAL_COLS,
     ).to_csv(raw / FILES["closed_deals"], index=False)
+    # orders: (order_id, seller, purchased at, status, [item prices])
+    orders = [
+        ("o1", "s_l2", "2018-01-20 10:00:00", "delivered", [100.0]),     # day 5
+        ("o2", "s_l2", "2018-03-01 10:00:00", "delivered", [30.0, 20.0]),  # day 45, 2 lines
+        ("o3", "s_l2", "2018-05-01 10:00:00", "delivered", [999.0]),     # day 106: too late
+        ("o4", "s_l2", "2018-02-01 10:00:00", "canceled", [500.0]),      # not a sale
+        ("o5", "s_l5", "2018-07-29 11:00:00", "delivered", [40.0]),      # 1 h inside day 90
+        ("o6", "s_l5", "2018-07-29 13:00:00", "delivered", [7.0]),       # 1 h after day 90
+        ("o7", "s_l6", "2018-08-25 10:00:00", "delivered", [60.0]),      # after OBS_END
+        ("o8", "s_l1", "2018-03-20 10:00:00", "delivered", [10.0]),      # day 64
+        ("o9", "s_other", "2018-02-02 10:00:00", "delivered", [5.0]),    # not a funnel seller
+        ("o10", "s_l3", "2018-08-01 10:00:00", "delivered", [25.0]),     # day 102
+    ]
+    pd.DataFrame(
+        [[oid, f"c_{oid}", status, ts, None, None, None, None] for oid, _, ts, status, _ in orders],
+        columns=ORDER_COLS,
+    ).to_csv(raw / FILES["orders"], index=False)
+    pd.DataFrame(
+        [[oid, n, f"p_{oid}", seller, None, price, 1.0]
+         for oid, seller, _, _, prices in orders for n, price in enumerate(prices, start=1)],
+        columns=ITEM_COLS,
+    ).to_csv(raw / FILES["order_items"], index=False)
     con = build(raw, tmp_path / "test.duckdb")
     yield con
     con.close()
@@ -222,3 +249,25 @@ def test_won_segments_profile(con):
     assert pet["pct_closed_in_14d"] == 100.0         # 10, -2 and 0 days
     assert df.loc["toys", "pct_closed_in_14d"] == 0.0  # 91 days
     assert df["cum_pct_of_wins"].iloc[-1] == 100.0
+
+
+def test_signed_sellers_count_only_valid_sales_inside_90_days(con):
+    df = con.execute("SELECT * FROM signed_sellers").df().set_index("mql_id")
+    assert len(df) == 5 and df["observed_90d"].all()  # l6 won 2018-05-10: day 90 is 2018-08-08
+    l2 = df.loc["l2"]                                 # o1 + o2; o3 too late, o4 cancelled
+    assert (l2["orders_90d"], l2["gmv_90d"], l2["sold_90d"]) == (2, 150.0, True)
+    l5 = df.loc["l5"]                                 # o5 counts, o6 is an hour too late
+    assert (l5["orders_90d"], l5["gmv_90d"]) == (1, 40.0)
+    assert not df.loc["l6", "sold_90d"] and pd.isna(df.loc["l6", "first_sale_at"])  # o7 ignored
+    assert not df.loc["l3", "sold_90d"] and df.loc["l3", "gmv_90d"] == 0  # first sale day 102
+
+
+def test_sale_before_signing_fails_check(con):
+    results = {name: (value, status) for name, value, status in run_checks(con)}
+    assert results["signed sellers with an order before they signed"] == (0, "ok")
+    assert results["signed sellers with any order in the e-commerce data"] == (5, "info")
+    con.execute("INSERT INTO orders VALUES ('o11', 'delivered', TIMESTAMP '2018-04-01 10:00:00')")
+    con.execute("INSERT INTO order_items VALUES ('o11', 1, 's_l3', 9.0)")  # l3 won 2018-04-21
+    results = {name: status for name, _, status in run_checks(con)}
+    assert results["signed sellers with an order before they signed"] == "FAIL"
+
