@@ -1,0 +1,9 @@
+milestone,sellers,pct_of_signed_sellers
+within 7 days,13,2.0
+within 14 days,41,6.4
+within 30 days,108,16.8
+within 45 days,159,24.7
+within 60 days,204,31.7
+within 90 days,277,43.1
+first sale after day 90,55,8.6
+no sale in the order data,311,48.4

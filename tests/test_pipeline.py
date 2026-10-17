@@ -271,3 +271,56 @@ def test_sale_before_signing_fails_check(con):
     results = {name: status for name, _, status in run_checks(con)}
     assert results["signed sellers with an order before they signed"] == "FAIL"
 
+
+def test_seller_activation_by_month_and_total(con):
+    df = run(con, "12_seller_activation").set_index("signed_month")
+    total = df.loc["TOTAL"]
+    assert (total["sellers"], total["sold_30d"], total["sold_60d"], total["sold_90d"]) == (5, 1, 1, 3)
+    assert (total["pct_sold_90d"], total["orders_90d"], total["gmv_90d"]) == (60.0, 4, 200.0)
+    assert total["median_days_to_first_sale"] == 64.0   # 5, 64 and 89.96 days
+    assert total["median_gmv_per_active_seller"] == 40.0
+    assert total["top_seller_pct_of_gmv"] == 75.0       # l2's 150 of 200
+    jan = df.loc["2018-01"]                             # l1 and l2
+    assert (jan["sellers"], jan["sold_90d"], jan["gmv_90d"]) == (2, 2, 160.0)
+    assert df.index[-1] == "TOTAL"
+    assert df.drop(index="TOTAL")["sellers"].sum() == 5
+
+
+def test_time_to_first_sale_keeps_non_sellers_in_denominator(con):
+    df = run(con, "13_time_to_first_sale").set_index("milestone")
+    assert df.loc["within 7 days", "sellers"] == 1
+    assert df.loc["within 60 days", "sellers"] == 1
+    assert df.loc["within 90 days", "sellers"] == 3
+    assert df.loc["within 90 days", "pct_of_signed_sellers"] == 60.0
+    assert df.loc["first sale after day 90", "sellers"] == 1     # l3, day 102
+    assert df.loc["no sale in the order data", "sellers"] == 1   # l6
+    assert df.loc[["within 90 days", "first sale after day 90",
+                   "no sale in the order data"], "sellers"].sum() == 5
+
+
+def test_activation_by_channel_pools_small_channels_and_chains_rates(con):
+    # 30 paid-search wins with no sales: big enough for their own row
+    add_page_leads(con, "paidpage", "paid_search", n=40, wins=30)
+    df = run(con, "14_activation_by_channel").set_index("channel")
+    paid = df.loc["paid_search"]
+    assert (paid["sellers"], paid["sold_90d"], paid["pct_sold_90d"]) == (30, 0, 0.0)
+    assert paid["ci95_low"] == 0 and paid["ci95_high"] > 0
+    assert (paid["lead_pct_won_90d"], paid["selling_sellers_per_1k_leads"]) == (75.0, 0.0)
+    pooled = df.loc["smaller channels (pooled)"]       # the 5 fixture sellers
+    assert (pooled["sellers"], pooled["sold_90d"], pooled["pct_sold_90d"]) == (5, 3, 60.0)
+    # pooled leads: 6 in-window fixture leads, 3 won in 90 days -> 50% x 60%
+    assert (pooled["lead_pct_won_90d"], pooled["selling_sellers_per_1k_leads"]) == (50.0, 300.0)
+    assert df.index[-1] == "smaller channels (pooled)"
+    assert df["pct_of_gmv"].sum() == pytest.approx(100, abs=0.1)
+
+
+def test_activation_by_lead_type(con):
+    con.execute("UPDATE closed_deals SET lead_type = 'offline' WHERE mql_id IN ('l3', 'l6')")
+    add_page_leads(con, "bigpage", "paid_search", n=30, wins=30)
+    con.execute("UPDATE closed_deals SET lead_type = 'online_big' WHERE mql_id LIKE 'bigpage%'")
+    df = run(con, "15_activation_by_lead_type").set_index("lead_type")
+    assert list(df.index) == ["online_big", "other types (pooled)"]
+    big, other = df.loc["online_big"], df.loc["other types (pooled)"]
+    assert (big["sellers"], big["sold_90d"]) == (30, 0)
+    assert (other["sellers"], other["sold_90d"], other["gmv_90d"]) == (5, 3, 200.0)
+    assert other["pct_of_sellers"] == pytest.approx(100 * 5 / 35, abs=0.05)

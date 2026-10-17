@@ -1,0 +1,7 @@
+channel,sellers,sold_90d,pct_sold_90d,ci95_low,ci95_high,gmv_90d,pct_of_gmv,median_gmv_per_active_seller,top_seller_pct_of_gmv,lead_pct_won_90d,selling_sellers_per_1k_leads
+organic_search,202,79,39.1,32.6,46.0,89615.11,27.3,390.0,31.5,12.3,48.0
+unknown,147,59,40.1,32.6,48.2,125141.3,38.1,336.62,60.5,19.3,77.5
+paid_search,140,77,55.0,46.7,63.0,74133.91,22.6,329.99,21.4,12.4,68.4
+social,54,23,42.6,30.3,55.8,12643.02,3.9,259.87,22.6,5.2,22.3
+direct_traffic,49,22,44.9,31.9,58.7,8980.43,2.7,229.11,15.0,12.9,57.9
+smaller channels (pooled),51,17,33.3,22.0,47.0,17524.43,5.3,246.4,31.4,6.8,22.7
