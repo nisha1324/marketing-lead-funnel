@@ -110,6 +110,7 @@ def build(raw: Path, db: Path) -> duckdb.DuckDBPyConnection:
             d.won_date,
             d.business_segment,
             d.lead_type,
+            d.business_type,
             d.mql_id IS NOT NULL                                      AS won,
             DATE_DIFF('day', m.first_contact_date, d.won_date::DATE)  AS days_to_close,
             COALESCE(DATE_DIFF('day', m.first_contact_date, d.won_date::DATE)
@@ -165,6 +166,7 @@ def build(raw: Path, db: Path) -> duckdb.DuckDBPyConnection:
             l.landing_page_id,
             l.lead_type,
             l.business_segment,
+            l.business_type,
             l.cohort_month,
             l.in_window,
             l.days_to_close,

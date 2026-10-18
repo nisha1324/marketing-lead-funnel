@@ -324,3 +324,79 @@ def test_activation_by_lead_type(con):
     assert (big["sellers"], big["sold_90d"]) == (30, 0)
     assert (other["sellers"], other["sold_90d"], other["gmv_90d"]) == (5, 3, 200.0)
     assert other["pct_of_sellers"] == pytest.approx(100 * 5 / 35, abs=0.05)
+
+
+def add_sellers(con, prefix: str, n: int, sold: int, page: str = "lp9", lead_type: str = "online_medium",
+                business_type: str = "reseller", segment: str = "pet", close_days: int = 5) -> None:
+    """Insert n won deals (signed 2018-02-10); the first `sold` make one R$10 sale 5 days later."""
+    contact = pd.Timestamp("2018-02-10") - pd.Timedelta(days=close_days)
+    for i in range(n):
+        mql, seller = f"{prefix}_{i}", f"s_{prefix}_{i}"
+        con.execute("INSERT INTO mqls VALUES (?, ?::DATE, ?, 'paid_search')", [mql, contact.date(), page])
+        con.execute("INSERT INTO closed_deals (mql_id, seller_id, won_date, business_segment, lead_type, "
+                    "business_type) VALUES (?, ?, TIMESTAMP '2018-02-10 10:00:00', ?, ?, ?)",
+                    [mql, seller, segment, lead_type, business_type])
+        if i < sold:
+            con.execute("INSERT INTO orders VALUES (?, 'delivered', TIMESTAMP '2018-02-15 10:00:00')", [f"o_{mql}"])
+            con.execute("INSERT INTO order_items VALUES (?, 1, ?, 10.0)", [f"o_{mql}", seller])
+
+
+def test_activation_by_segment_pools_small_segments(con):
+    add_sellers(con, "toy", n=20, sold=5, segment="toys")
+    con.execute("UPDATE closed_deals SET business_type = 'manufacturer' WHERE mql_id IN ('toy_0', 'toy_1')")
+    df = run(con, "16_activation_by_segment").set_index("segment")
+    assert list(df.index) == ["toys", "smaller segments (pooled)"]
+    toys, pooled = df.loc["toys"], df.loc["smaller segments (pooled)"]
+    assert (toys["sellers"], toys["sold_90d"], toys["pct_sold_90d"]) == (20, 5, 25.0)
+    assert toys["pct_manufacturers"] == 10.0 and toys["top_seller_pct_of_gmv"] == 20.0
+    assert toys["ci95_low"] < 25.0 < toys["ci95_high"]
+    assert (pooled["segments"], pooled["sellers"], pooled["sold_90d"]) == (1, 5, 3)  # the 5 pet sellers
+    assert df["pct_of_gmv"].sum() == pytest.approx(100, abs=0.1)
+
+
+def test_business_type_adjustment_removes_lead_type_mix(con):
+    # same within-type rates (50% online_big, 10% offline) but manufacturers are
+    # mostly offline: the raw gap is large, the adjusted gap small
+    add_sellers(con, "mbig", n=10, sold=5, lead_type="online_big", business_type="manufacturer")
+    add_sellers(con, "rbig", n=30, sold=15, lead_type="online_big")
+    add_sellers(con, "moff", n=30, sold=3, lead_type="offline", business_type="manufacturer")
+    add_sellers(con, "roff", n=10, sold=1, lead_type="offline")
+    df = run(con, "17_activation_by_business_type").set_index("business_type")
+    m, r = df.loc["manufacturer"], df.loc["reseller"]
+    assert (m["sellers"], m["sold_90d"], m["pct_sold_90d"]) == (40, 8, 20.0)
+    assert (r["sellers"], r["sold_90d"], r["pct_sold_90d"]) == (45, 19, 42.2)
+    # 5 fixture sellers form a pooled stratum with no manufacturers in it
+    assert (m["pct_sold_90d_type_adjusted"], m["adjusted_weight_pct"]) == (30.0, 94.1)
+    assert (r["pct_sold_90d_type_adjusted"], r["adjusted_weight_pct"]) == (31.8, 100.0)
+    assert m["ci95_high"] < r["ci95_high"] and r["ci95_low"] > 0
+
+
+def test_activation_by_page_chains_rates(con):
+    add_sellers(con, "pg", n=30, sold=15, page="bigpage_long_id")
+    for i in range(10):                                   # 10 more leads on the page that never sign
+        con.execute("INSERT INTO mqls VALUES (?, DATE '2018-02-01', 'bigpage_long_id', 'paid_search')",
+                    [f"pg_lost_{i}"])
+    df = run(con, "18_activation_by_page").set_index("page")
+    big, pooled = df.loc["bigpage_"], df.loc["smaller pages (pooled)"]
+    assert (big["sellers"], big["sold_90d"], big["pct_sold_90d"], big["main_origin"]) == (30, 15, 50.0, "paid_search")
+    assert (big["leads_2018"], big["lead_pct_won_90d"], big["selling_sellers_per_1k_leads"]) == (40, 75.0, 375.0)
+    # lp1-lp3: 5 sellers (3 sold); 6 in-window leads, 3 won in 90 days -> 50% x 60%
+    assert (pooled["pages"], pooled["sellers"], pooled["sold_90d"]) == (3, 5, 3)
+    assert (pooled["lead_pct_won_90d"], pooled["selling_sellers_per_1k_leads"]) == (50.0, 300.0)
+    assert pd.isna(pooled["main_origin"]) and df.index[-1] == "smaller pages (pooled)"
+
+
+def test_close_speed_buckets_and_z(con):
+    df = run(con, "19_close_speed_vs_activation").set_index("bucket")
+    # 0-14: l2 (10 d, sold), l5 (-2 d -> 0, sold), l6 (0 d); 61+: l3 (91 d), l1 (158 d, sold)
+    fast, slow = df.loc["0-14 days"], df.loc["61+ days"]
+    assert (fast["sellers"], fast["sold_90d"], fast["min_days"]) == (3, 2, 0)
+    assert (slow["sellers"], slow["sold_90d"], slow["min_days"], slow["max_days"]) == (2, 1, 91, 158)
+    assert "15-30 days" not in df.index and "31-60 days" not in df.index
+    pooled = df.loc["over 14 days (pooled)"]
+    assert (pooled["sellers"], pooled["sold_90d"]) == (2, 1) and df.index[-1] == "over 14 days (pooled)"
+    assert df.drop(index="over 14 days (pooled)")["sellers"].sum() == 5
+    # 50% vs 66.7%, pooled p = 3/5: z = -0.1667 / sqrt(0.24 x (1/2 + 1/3)) = -0.37
+    assert pooled["z_vs_first_14d"] == -0.37 and pd.isna(fast["z_vs_first_14d"])
+    # one lead-type stratum, so the adjusted rate equals the raw rate
+    assert (df["pct_sold_90d_type_adjusted"] == df["pct_sold_90d"]).all()
