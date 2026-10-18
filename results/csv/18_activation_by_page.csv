@@ -1,0 +1,6 @@
+page,pages,main_origin,sellers,sold_90d,pct_sold_90d,ci95_low,ci95_high,pct_of_gmv,median_gmv_per_active_seller,top_seller_pct_of_gmv,leads_2018,lead_pct_won_90d,selling_sellers_per_1k_leads
+b76ef374,1,unknown,142,57,40.1,32.4,48.4,38.1,349.9,60.6,751,20.2,81.2
+22c29808,1,organic_search,139,66,47.5,39.4,55.7,24.9,330.0,34.6,726,20.5,97.4
+40dec9f3,1,paid_search,50,26,52.0,38.5,65.2,7.9,499.85,13.7,297,19.5,101.5
+ce1a65ab,1,organic_search,47,22,46.8,33.3,60.8,4.2,357.0,23.0,346,13.6,63.6
+smaller pages (pooled),104,,265,106,40.0,34.3,46.0,24.8,264.4,7.6,3878,7.0,28.1

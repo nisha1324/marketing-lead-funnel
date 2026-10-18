@@ -1,0 +1,4 @@
+business_type,sellers,pct_of_sellers,sold_90d,pct_sold_90d,ci95_low,ci95_high,pct_sold_90d_type_adjusted,adjusted_weight_pct,pct_of_gmv,median_gmv_per_active_seller,top_seller_pct_of_gmv
+reseller,441,68.6,213,48.3,43.7,53.0,48.0,100.0,90.2,390.0,25.6
+manufacturer,193,30.0,62,32.1,25.9,39.0,33.7,100.0,9.7,259.6,14.5
+(missing),9,1.4,2,22.2,6.3,54.7,18.5,67.3,0.1,103.8,90.4

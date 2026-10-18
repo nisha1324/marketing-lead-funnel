@@ -1,0 +1,6 @@
+bucket,min_days,max_days,sellers,sold_90d,pct_sold_90d,ci95_low,ci95_high,pct_sold_90d_type_adjusted,z_vs_first_14d,median_days_to_first_sale,median_gmv_per_active_seller
+0-14 days,0,14,402,184,45.8,41.0,50.7,45.4,,38.9,319.65
+15-30 days,15,30,115,46,40.0,31.5,49.1,39.0,-1.1,37.1,342.87
+31-60 days,31,60,75,29,38.7,28.5,50.0,39.7,-1.14,38.8,319.0
+61+ days,63,226,51,18,35.3,23.6,49.0,36.7,-1.42,48.0,356.45
+over 14 days (pooled),15,226,241,93,38.6,32.7,44.9,39.0,-1.78,39.1,349.9
