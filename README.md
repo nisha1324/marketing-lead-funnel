@@ -1,10 +1,19 @@
 # Marketing Lead Funnel Analysis (DuckDB + SQL)
 
-> **Status: in progress.** All three analysis parts are done: conversion by month, channel and speed, the May drop, sales-team capacity, landing pages and the profile of won deals (Parts 1–2), and whether signed sellers actually start selling, by channel, lead type, segment, business type, landing page and close speed (Part 3). Next: the final write-up (TL;DR, ranked recommendations, limitations). See [Roadmap](#roadmap).
+> **Status: complete.** Three parts: conversion by month, channel and speed and the May 2018 drop (Part 1), sales capacity, landing pages and the profile of won deals (Part 2), and whether signed sellers actually start selling (Part 3). 19 commented SQL queries, 11 charts and 25 offline tests. [Recommendations](#recommendations) and [limitations](#limitations) are at the end.
 
 **Business question:** a marketplace recruits sellers through a marketing and sales funnel: a business signs up on a landing page, a sales development rep (SDR) qualifies it, and a sales rep (SR) tries to close it. **Which marketing channels bring leads that actually sign, how fast do deals close, and why did conversion fall in May 2018?** The answers decide where marketing spends its budget and how sales should prioritise its follow-up.
 
-## Findings so far
+## TL;DR
+- **About 1 in 20 leads becomes a seller who actually sells.** 11.3% of the Jan–May 2018 leads signed within 90 days, and only 43.1% of signed sellers made a sale within 90 days of signing. Chained together, that is roughly 49 selling sellers per 1,000 leads (an estimate: the two rates come from overlapping, not identical, groups). The biggest leak is after the deal, not before it.
+- **Channels differ more in quality than in volume.** Social and email are 23.3% of leads but 9.9% of wins. Paid and organic search sign leads at the same rate, but paid-search sellers start selling more often (55.0% vs 39.1%): about 68 vs 48 selling sellers per 1,000 leads. A quarter of wins (24.9%) have no channel, and most of those came through one landing page.
+- **Landing pages matter even within a channel.** Three pages took 29.6% of leads and 53.0% of wins. Within organic search one page converts 22.0% against 4.7–7.0% on two others, and its sellers still start selling at 47.5%.
+- **May 2018's fall (12.1% → 8.4%) was weaker conversion, not worse leads.** 3.34 of the 3.75 points came from conversion within channels, mid-sized online sellers account for 72% of it, and the number of reps with a win dipped only slightly (15 against 16–20).
+- **Manufacturers, offline and industry businesses sign but rarely sell.** 32.1% of manufacturers start selling within 90 days against 48.3% of resellers (the gap holds after adjusting for lead type); offline 23.8% and industry 35.6% against 63.2% for big online sellers.
+
+<details>
+<summary><b>All headline findings</b> (details and charts in <a href="#findings">Findings</a>)</summary>
+
 - **About 1 in 9 leads signs within 90 days.** 678 of the 5,998 leads from Jan–May 2018 (11.3%) became sellers within 90 days. Jan–Apr was steady at 11.3–12.6%, then May fell to **8.4%**.
 - **Social and email bring volume, not sellers.** Together they are 23.3% of leads but only 9.9% of 90-day wins: social converts at 5.2% and email at 3.5%, against 12.3–12.9% for organic search, paid search and direct traffic.
 - **A quarter of wins can't be credited to any channel.** Leads with origin `unknown` or missing are 14.4% of leads but 24.9% of wins, and they convert best (19.6%). Any cost-per-seller figure by channel built on this data leaves out a quarter of signed sellers.
@@ -21,6 +30,8 @@
 - **Manufacturers sign but don't sell.** 32.1% of manufacturers made a sale within 90 days against 48.3% of resellers, and the gap stays (33.7% vs 48.0%) after adjusting for lead type. They are 30.0% of signed sellers but 9.7% of the 90-day sales value.
 - **The best landing pages keep their lead after the deal.** Pages `40dec9f3` and `22c29808` sign about 20% of their leads and their sellers start selling at 52.0% and 47.5%, so they bring ~102 and ~97 selling sellers per 1,000 leads, against ~28 for the long tail of small pages.
 - **Fast deals look a little better, but it isn't proven.** 45.8% of deals closed within 14 days start selling vs 38.6% of slower ones; the gap survives a lead-type adjustment (45.4% vs 39.0%) but isn't significant at the 5% level (z = −1.78).
+
+</details>
 
 ## Data
 [Marketing Funnel by Olist](https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist): real, anonymised data on 8,000 marketing-qualified leads (MQLs) who asked to sell on the Olist marketplace between June 2017 and June 2018, randomly sampled by Olist from all its MQLs, plus the 842 of them that signed. Kaggle needs a login, so `scripts/download_data.py` fetches the two CSVs (~0.9 MB) from public GitHub mirrors ([`mara/mara-olist-ecommerce-data`](https://github.com/mara/mara-olist-ecommerce-data), with [`patterns-app/public_data`](https://github.com/patterns-app/public_data) as a fallback). Both mirrors serve byte-identical files whose total size matches the Kaggle listing exactly. The script pins their SHA-256 hashes and stops if a file changes. The raw CSVs aren't committed.
@@ -105,7 +116,7 @@ A shift-share split of the change from Jan–Apr (12.1%) to May (8.4%):
 | unknown | 19.9% | 16.9% |
 | direct_traffic | 14.2% | 7.7% |
 
-Because nearly every channel fell together, the cause is more likely on the sales side (capacity, follow-up, or a change in process) than in marketing targeting. Part 2 checks SDR and SR workload to test this. Query: [`04_may_drop_mix_vs_rate.sql`](sql/04_may_drop_mix_vs_rate.sql).
+Because nearly every channel fell together, the cause is more likely on the sales side (capacity, follow-up, or a change in process) than in marketing targeting. Section 5 checks rep capacity to test this. Query: [`04_may_drop_mix_vs_rate.sql`](sql/04_may_drop_mix_vs_rate.sql).
 
 ### 5. Sales capacity: May had slightly fewer reps, and wins lean on a few people
 ![Sales reps with a win, and rep concentration](results/charts/05_sales_capacity.png)
@@ -211,7 +222,7 @@ Queries: [`12_seller_activation.sql`](sql/12_seller_activation.sql), [`13_time_t
 
 - **Paid search beats organic search once selling is counted.** The two channels sign leads at the same rate, but paid-search sellers start selling more often (55.0% vs 39.1%; the intervals only just don't overlap: organic up to 46.0%, paid from 46.7%). Per 1,000 leads that's about 68 selling sellers vs 48.
 - **Social's problem is the lead step, not the sellers.** Social sellers who sign start selling at about the average rate (42.6%, interval 30.3–55.8), so social stays near the bottom (~22 per 1,000 leads) mainly because few of its leads sign.
-- **Unknown-origin leads stay the most valuable** (~78 selling sellers per 1,000 leads) and carry 38.1% of the 90-day sales value, though one seller makes 60.5% of that channel's total. This makes the tracking fix (recommendation 7) more urgent.
+- **Unknown-origin leads stay the most valuable** (~78 selling sellers per 1,000 leads) and carry 38.1% of the 90-day sales value, though one seller makes 60.5% of that channel's total. This makes the tracking fix (recommendation 3) more urgent.
 
 | Lead type | Signed sellers | Sold ≤ 90 days | 95% interval | Active sellers' median sales | Share of 90-day sales value |
 |---|---:|---:|---|---:|---:|
@@ -256,7 +267,7 @@ Same 643 sellers and 90-day definition as sections 9–10. Segments with fewer t
 | `ce1a65ab` (organic search) | 47 | 46.8% | 33.3–60.8 | 13.6% | 63.6 |
 | 104 smaller pages (pooled) | 265 | 40.0% | 34.3–46.0 | 7.0% | 28.1 |
 
-- **The strong pages don't trade signatures for inactive sellers.** Sellers from the three ~20% pages start selling at 40.1–52.0%, around or above the 43.1% average, and the activation intervals of all four big pages overlap. So the lead step decides the page ranking: the best pages bring about 3–4× as many selling sellers per 1,000 leads as the small-page tail (81–102 vs 28). The A/B test in recommendation 6 stays worthwhile once selling is counted.
+- **The strong pages don't trade signatures for inactive sellers.** Sellers from the three ~20% pages start selling at 40.1–52.0%, around or above the 43.1% average, and the activation intervals of all four big pages overlap. So the lead step decides the page ranking: the best pages bring about 3–4× as many selling sellers per 1,000 leads as the small-page tail (81–102 vs 28). The A/B test in recommendation 5 stays worthwhile once selling is counted.
 
 ![Activation by close speed and business type](results/charts/11_close_speed_and_business_type.png)
 
@@ -277,22 +288,21 @@ Same 643 sellers and 90-day definition as sections 9–10. Segments with fewer t
 
 Queries: [`16_activation_by_segment.sql`](sql/16_activation_by_segment.sql), [`17_activation_by_business_type.sql`](sql/17_activation_by_business_type.sql), [`18_activation_by_page.sql`](sql/18_activation_by_page.sql), [`19_close_speed_vs_activation.sql`](sql/19_close_speed_vs_activation.sql).
 
-## So what for the business (so far)
-1. **Rebalance social and email towards search.** They supply nearly a quarter of leads but a tenth of sellers. Either cut spend, or add a qualification step (form questions, a self-serve check) so SDRs don't spend time on leads that rarely sign. *Owner: marketing lead.*
-2. **Fix lead-source tracking before judging channel ROI.** A quarter of signed sellers have no channel, so every channel's cost per seller is wrong today. *Owner: marketing ops.*
-3. **Front-load sales follow-up.** Most wins happen in the first 14 days; a lead untouched in that window is losing its best odds. *Owner: SDR team lead.*
-4. **Treat May as a sales-side alert, but look at process before headcount.** Lead quality per channel didn't explain the fall, and the rep count dipped only slightly (15, against 16–20), so check follow-up speed and lead handling first. Lead contact dates would settle it. *Owner: sales manager.*
-5. **Reduce reliance on the top reps.** The top 5 of 21 reps won half of 2018's wins. Pair them with other reps on large leads, and track win volume by rep so that a departure is visible early. *Owner: sales manager.*
-6. **A/B test the weak landing pages against the strong ones.** Within organic search, page `22c29808` converts about 3–5× better than `f017be4d` and `e492ee5e`. Route part of the weak pages' traffic to the strong page (or copy its form and pitch) and compare. Check the March social page switch (`88740e65` → `58326e62`) the same way. Part 3 shows that sellers from `22c29808` start selling at 47.5%, above the 43.1% average, so the strong page doesn't buy signatures with inactive sellers; judge the test on selling sellers, not only signatures. *Owner: marketing / web team.*
-7. **Start the tracking fix with page `b76ef374`.** It carries two thirds of the unknown-origin leads and three quarters of their wins, so finding out what links to it should recover most of the missing attribution. *Owner: marketing ops.*
-8. **Review how mid-sized online sellers were handled in May.** They account for 72% of May's fall in wins per lead. Look at what changed for them (pitch, pricing or terms, which reps they went to) before treating May as a general slowdown. *Owner: sales manager.*
+## Recommendations
+Ranked by how many selling sellers each could add and how firm the evidence is. Each is tied to a figure above (§ = section of [Findings](#findings)). Owners are roles: the data has no organisation chart.
 
-9. **Measure the funnel to the first sale, not to the signature.** Only 43.1% of signed sellers sold within 90 days, and the median first sale came 39 days after the deal. Add "first sale within 30/90 days" to the sales and marketing scorecards, and have onboarding contact every seller with no sale by day 30 (most of them: 83.2%), starting with the lead types least likely to sell (recommendation 11). *Owner: head of sales / seller onboarding.*
-10. **Value paid search on selling sellers.** It signs leads at the same rate as organic search but brings ~68 vs ~48 selling sellers per 1,000 leads. Judge its budget on that, not on signatures. *Owner: marketing lead.*
-11. **Give offline and industry sellers an onboarding track, or qualify them harder.** Only 23.8% and 35.6% of them start selling within 90 days, against 63.2% of big online sellers. Either help them list (catalogue upload, photos) or weigh lead type when prioritising follow-up. *Owner: sales manager / seller onboarding.*
-12. **Add a manufacturer onboarding path.** Manufacturers start selling at 32.1% against 48.3% for resellers, even within the same lead type, and they are 30% of signed sellers (58% in home décor, the biggest segment). Find out where they stall (catalogue, pricing, logistics) with the onboarding team, and track their first-sale rate separately. *Owner: seller onboarding / category manager for home décor.*
+| # | Recommendation | Why (measured) | Owner |
+|---|---|---|---|
+| 1 | **Measure the funnel to the first sale, not the signature.** Add "first sale within 30 / 90 days" to the sales and marketing scorecards, and have onboarding contact every seller with no sale by day 30. | 56.9% of signed sellers made no sale within 90 days, 83.2% none within 30, and the median first sale came on day 39 (§9). A won deal that never sells costs the sales effort and brings no revenue. | Head of sales, seller onboarding |
+| 2 | **Give manufacturers, offline and industry sellers an onboarding path** (catalogue upload, photos, marketplace pricing), and track their first-sale rate separately. | Manufacturers start selling at 32.1% vs 48.3% for resellers (33.7% vs 48.0% within lead type) and are 30.0% of signed sellers but 9.7% of 90-day sales value. Offline 23.8% and industry 35.6% vs 63.2% for big online sellers (§10–11). Home décor, the largest segment, is 58.0% manufacturers and activates at 33.3%. | Seller onboarding; home décor category manager |
+| 3 | **Fix lead-source tracking, starting with landing page `b76ef374`.** Find what links to it and tag that route. Do this before re-cutting channel budgets. | Unattributed leads are 14.4% of leads but 24.9% of wins, so every channel's cost per seller is off today. `b76ef374` carries 536 of the 813 unknown-origin leads and 119 of their 157 wins (§2, §6). | Marketing ops |
+| 4 | **Move budget from social and email towards search, judged on selling sellers.** Or add a qualification step (form questions, a self-serve check) so SDRs spend less time on leads that rarely sign. | Social converts 5.2% and email 3.5% vs 12.3–12.9% for search and direct (§2). Per 1,000 leads: paid search ~68 selling sellers, organic ~48, social ~22 (§10). The data has no spend, so check cost per lead before moving money. | Marketing lead |
+| 5 | **A/B test the weak landing pages against the strong ones,** including the March social page switch (`88740e65` → `58326e62`), and score the test on selling sellers. | Within organic search `22c29808` converts 22.0% vs 7.0% and 4.7% (intervals don't overlap, §6). The strong pages' sellers still start selling at 47.5–52.0%, ~97–102 selling sellers per 1,000 leads vs ~28 for the small-page tail (§11). | Marketing / web team |
+| 6 | **Review what changed in May with the sales team, starting with mid-sized online prospects** (pitch, terms, lead routing, follow-up speed) before treating it as a general slowdown. | −3.34 of the −3.75 points was within-channel (−3.35 within-page), so not lead mix (§4, §7). `online_medium` accounts for 72% of the fall in wins per lead (§7). Reps with a win dipped only from 16–20 to 15, with similar wins per rep (§5). | Sales manager |
+| 7 | **Front-load follow-up into the first 14 days** and flag leads still open after day 7 for a second touch. | 38.1% of wins sign within 7 days and 57.3% within 14 (§3). Fast deals also start selling a little more often (45.8% vs 38.6%), though that gap isn't significant (§11). | SDR team lead |
+| 8 | **Reduce reliance on the top reps.** Pair them with other reps on large leads, and track wins by rep so a departure shows up early. | The top 5 of 21 reps won 50.6% of 2018 wins and the top rep 16.4% (§5). | Sales manager |
 
-These are first-pass recommendations. The final set will be merged and ranked in the final write-up.
+**Data that would sharpen this.** Marketing spend by channel (turns "selling sellers per 1,000 leads" into cost per selling seller), lost deals and SDR contact dates (true funnel stages and rep win rates), and the full order history (a firm activation level instead of a lower bound).
 
 ## How to run
 ```bash
@@ -310,9 +320,11 @@ pytest                                 # offline tests on a fixture database
 - [x] Part 2b: landing pages (within-channel comparison with 95% intervals, May split by page) and the profile of won deals (lead type, business segment)
 - [x] Part 3a: after the deal: won sellers joined to the [Olist e-commerce orders](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) by `seller_id`; 90-day activation, time to first sale, and activation by channel and lead type
 - [x] Part 3b: activation by business segment, business type and landing page, and whether fast-closing deals become better sellers (with a lead-type adjustment and a significance check)
-- [ ] Final TL;DR, ranked recommendations with owners, limitations
+- [x] TL;DR, ranked recommendations with owners, limitations
 
-## Limitations (so far)
+Possible extensions: add marketing spend (if a public source with the same channels appears) to rank channels on cost per selling seller; repeat Part 3 with a longer selling window once newer order data is available; test the manufacturer gap within segment as well as lead type.
+
+## Limitations
 - **One channel per lead.** Olist notes a lead may have come from several sources; the data records one origin.
 - **Reps are visible only through their wins.** Win rates by rep can't be measured, and the rep counts are a lower bound (see Part 2).
 - **Lead type and segment only for wins.** They are recorded when a deal is won, so Part 2b describes the sellers who signed and scales wins to all leads; it can't give a conversion rate per type or segment.
@@ -324,4 +336,6 @@ pytest                                 # offline tests on a fixture database
 - **Sales value is concentrated.** One seller makes 23.1% of the 90-day sales value, so totals and shares by group move with single accounts. Part 3 leans on activation rates and medians for that reason.
 - **A fixed 90-day window.** Sellers signed after 2018-05-23 can't be followed for 90 days before the order data thins out, so Part 3 covers sellers signed December 2017 to May 2018 (including 31 from 2017 leads).
 - **Small groups, many comparisons.** Segments have 20–81 signed sellers and pages 47–142, so intervals are wide, and with 11 segments compared one clear gap can partly be chance. The lead-type adjustment controls for lead type only, not segment, channel or rep.
+- **No marketing spend.** Channel advice rests on conversion and activation, not cost; a cheap channel with a low rate can still be worth keeping.
+- **One marketplace, 2017–2018.** The patterns are a case study of Olist's seller funnel, not a forecast for another business.
 - **Days to close starts at first contact.** There are no SDR contact dates, so a "slow" deal may have been slow to be picked up rather than slow to decide.
